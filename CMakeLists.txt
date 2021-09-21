@@ -22,6 +22,13 @@ add_executable(${PROJECT_NAME} ${SOURCES})
 # includes
 target_include_directories(${PROJECT_NAME} PRIVATE ./)
 
+find_package(OpenCL REQUIRED)
+include_directories(${OpenCL_INCLUDE_DIRS})
+link_directories(${OpenCL_LIBRARY})
+target_link_libraries (${PROJECT_NAME} ${OpenCL_LIBRARY})
+
+configure_file(${PROJECT_SOURCE_DIR}/kernels/vector_add_kernel.cl ${BIN_OUTPUT_DIR}/vector_add_kernel.cl COPYONLY)
+
 # Link the math library, needed on UNIX systems.
 if (UNIX)
     target_link_libraries(${PROJECT_NAME} m)
