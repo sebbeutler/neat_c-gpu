@@ -2,6 +2,7 @@
 build/
 build*/
 .*/
+!.github/
 
 
 # CMake specifics
