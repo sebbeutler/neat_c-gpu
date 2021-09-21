@@ -20,7 +20,12 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-
+    
+    - name: Setup OpenCL
+      run: |
+        sudo apt-get install ocl-icd-opencl-dev ocl-icd-libopencl1
+        sudo apt-get install opencl-headers ocl-icd-dev ocl-icd-libopencl1
+    
     - name: Configure CMake
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
       # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
