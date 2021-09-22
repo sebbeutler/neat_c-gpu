@@ -27,7 +27,7 @@ include_directories(${OpenCL_INCLUDE_DIRS})
 link_directories(${OpenCL_LIBRARY})
 target_link_libraries (${PROJECT_NAME} ${OpenCL_LIBRARY})
 
-configure_file(${PROJECT_SOURCE_DIR}/kernels/vector_add_kernel.cl ${BIN_OUTPUT_DIR}/vector_add_kernel.cl COPYONLY)
+configure_file(${PROJECT_SOURCE_DIR}/kernels/kernel.cl ${BIN_OUTPUT_DIR}/kernel.cl COPYONLY)
 
 # Link the math library, needed on UNIX systems.
 if (UNIX)
