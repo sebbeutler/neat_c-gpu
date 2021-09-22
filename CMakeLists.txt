@@ -34,5 +34,12 @@ if (UNIX)
     target_link_libraries(${PROJECT_NAME} m)
 endif (UNIX)
 
+# disable unsafe functions warnings
+# add_compile_options(/w44101)
+if (WIN32)
+    set(CMAKE_C_FLAGS "/D_CRT_SECURE_NO_WARNINGS /D_CRT_SECURE_NO_DEPRECATE ${CMAKE_C_FLAGS}")
+    set(CMAKE_C_FLAGS "/D_CRT_NONSTDC_NO_DEPRECATE /D_SCL_SECURE_NO_DEPRECATE ${CMAKE_C_FLAGS}")
+endif (WIN32)
+
 # disable ZERO_CHECK project
 set(CMAKE_SUPPRESS_REGENERATION true)
