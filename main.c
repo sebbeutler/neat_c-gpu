@@ -77,16 +77,30 @@ int main(int argc, char *argv[])
     clReleaseMemObject(c_mem_obj);
 */
     
-    int nb = CL_DEVICE_MAX_WORK_ITEM_SIZES ;
+    int primes[150000] = {0};
     cl_kernel kernel = clCreateKernel(program, "euler1", NULL);
-    cl_mem mem_obj = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeof(int), NULL, NULL);
+    cl_mem mem_obj = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeof(primes), NULL, NULL);
     clSetKernelArg(kernel, 0, sizeof(cl_mem), &mem_obj);
-    size_t global_item_size = 1000000000;
+    size_t global_item_size = 150000;
     size_t local_item_size = 1000;
     clEnqueueNDRangeKernel(command_queue, kernel, 1, NULL, &global_item_size, &local_item_size, 0, NULL, NULL);
-    clEnqueueReadBuffer(command_queue, mem_obj, CL_TRUE, 0, sizeof(int), &nb, 0, NULL, NULL);
+    clEnqueueReadBuffer(command_queue, mem_obj, CL_TRUE, 0, sizeof(primes), primes, 0, NULL, NULL);
     clReleaseMemObject(mem_obj);
-    printf("NB: %d\n", nb);
+    
+    int p_cpt = 0;
+    for (int i=0; i < 150000; i++)
+    {
+        if (primes[i] != 0)
+        {
+            p_cpt++;
+            if (p_cpt == 10001)
+            {
+                printf("Prime: %d\n", primes[i]);
+                break;
+            }
+        }        
+    }
+    printf("Prime count: %d", p_cpt);
 
 
     // clean

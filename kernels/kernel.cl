@@ -19,18 +19,26 @@ void vector_add(__global const int *A, __global const int *B, __global int *C, i
     C[i*w+j] = A[i*w+j] + B[i*w+j];
 }
 
+bool isPrime(int n)
+{
+    for (int i=2; i<= n/2; i++)
+    {
+        if (n % i == 0)
+        {
+            return false;
+        }
+    }
+    return true;
+}
 
 __kernel
-void euler1(__global int *nb)
+void euler1(__global int* prime_tab)
 {
-    int i = get_global_id(0);
-    
-    for (int j = 1; j<= 20; j++)
-    {
-        if (i % j != 0)
-            return;
-    }
+    int i = get_global_id(0) + 2;
 
-    if (i < *nb || *nb == 0)
-        *nb = i;
+    if (isPrime(i))
+    {
+        prime_tab[i-2] = i;
+    }    
 }
+
