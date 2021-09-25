@@ -1,44 +1,54 @@
-__kernel
-void vector_add(__global const int *A, __global const int *B, __global int *C, int w) {
- 
-    // Get the index of the current element to be processed
-    int i = get_global_id(0);
-    int j = get_global_id(1);
-    /*
-    // Map the two 2D indices to a single linear, 1D index 
-    int grid_width = get_num_groups(0) * get_local_size(0);"
-    int index = index_y * grid_width + index_x;"
+#define matrixB byte_t*
+#define matrixI int*
+#define matrixF float*
+#define matrixD double*
 
-    // Map the two 2D group indices to a single linear, 1D group index 
-    int result = get_group_id(1) * get_num_groups(0) + get_group_id(0);"
+#define matrix_seq matrixD
+#define matrix_mask matrixB
 
-    // Write out the result
-    out[index] = result;"
-    */
-    // Do the operation
-    C[i*w+j] = A[i*w+j] + B[i*w+j];
+typedef char byte_t;
+
+global int neuron_count;
+kernel void set_neuron_count(int n) { neuron_count = n; }
+
+void GetSemaphor(__global int* semaphor) {
+   int occupied = atom_dec(semaphor);
+   while(occupied > 0)
+   {
+     occupied = atom_dec(semaphor);
+   }
 }
 
-bool isPrime(int n)
+void ReleaseSemaphor(__global int* semaphor)
 {
-    for (int i=2; i<= n/2; i++)
+   int prevVal = atom_xchg(semaphor, 0);
+}
+
+void initBasic(global matrix_mask M, int inputSize, int outputSize)
+{
+    for (int i=0; i < inputSize; i++)
     {
-        if (n % i == 0)
+        for (int j=inputSize; j < inputSize+outputSize; j++)
         {
-            return false;
+            M[i + j*10] = 1;
         }
     }
-    return true;
 }
 
-__kernel
-void euler1(__global int* prime_tab)
+kernel void evolve(global matrix_seq seq_global, global matrix_mask seq_mask)
 {
-    int i = get_global_id(0) + 2;
+    local int i;
 
-    if (isPrime(i))
-    {
-        prime_tab[i-2] = i;
-    }    
+    int id = get_global_id(0);
+    int y = get_global_id(1);
+    int x = get_global_id(2);
+    int size = get_global_size(0);
+    int seq_pos = id * get_global_id(1) * get_global_id(2) + y * get_global_id(1) + x;
+    
+    if (atom_xchg(&i, 1) != 1)
+        initBasic(seq_mask + id*size*size, 3, 2);
 }
+
+
+
 

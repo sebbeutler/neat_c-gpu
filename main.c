@@ -4,11 +4,10 @@
 
 #include <CL/cl.h>
 
-#define MAX_SOURCE_SIZE (0x100000)
+#include "utils.h"
+#include "format_io.h"
 
-cl_program load_program(cl_context context, char* filename);
-
-void print_mat(int *mat, int width, int height);
+cl_program load_program(cl_context context, char* filename, cl_int* errcode_ret);
 
 char BIN_PATH[255];
 int main(int argc, char *argv[])
@@ -23,85 +22,94 @@ int main(int argc, char *argv[])
         }
     }
 
+#pragma region OPENCL_INIT
+
+    cl_int ret = 0;
+    size_t global_item_size[3];
+    size_t local_item_size[3];
     cl_platform_id platform_id = NULL;
     cl_device_id device_id = NULL;
-    clGetPlatformIDs(1, &platform_id, NULL);
-    clGetDeviceIDs(platform_id, CL_DEVICE_TYPE_DEFAULT, 1, &device_id, NULL);
-    cl_context context = clCreateContext(NULL, 1, &device_id, NULL, NULL, NULL);
-    cl_command_queue command_queue = clCreateCommandQueue(context, device_id, 0, NULL);
+    ret |= clGetPlatformIDs(1, &platform_id, NULL);
+    ret |= clGetDeviceIDs(platform_id, CL_DEVICE_TYPE_DEFAULT, 1, &device_id, NULL);
+    cl_context context = clCreateContext(NULL, 1, &device_id, NULL, NULL, &ret);
+    cl_command_queue command_queue = clCreateCommandQueue(context, device_id, 0, &ret);
 
-/*
-    const int MWIDTH = 10;
-    const int MHEIGHT = 10;
-    const size_t MSIZE = MWIDTH * MHEIGHT * sizeof(int);
-    int A[10][10];
-    int B[10][10];
-    int C[10][10];
-    for (int i = 0; i < MWIDTH; i++)
+#pragma endregion OPENCL_INIT
+
+#pragma region KERNEL_EXEC
+
+    cl_program program = load_program(context, "kernel.cl", &ret);
+    ret |= clBuildProgram(program, 1, &device_id, NULL, NULL, NULL);
+    cl_kernel kernel;
+
+    int neuron_count = 10;
+
+    // Init buffers
+    int sizeH = 10;
+    int sizeW = 10;
+    int pop_count = 10;
+    size_t pop_size = pop_count * sizeW * sizeH * sizeof(double);
+    size_t mask_size = pop_count * sizeW * sizeH * sizeof(byte_t);
+    
+    matrix_seq seq_global = malloc(pop_size); if (!seq_global) return -4;
+    memset(seq_global, 0, pop_size);
+    
+    matrix_mask seq_mask = malloc(mask_size); if (!seq_mask) return -4;
+    memset(seq_mask, 0, mask_size);
+
+    cl_mem pop_mem =  clCreateBuffer(
+        context,
+        CL_MEM_COPY_HOST_PTR,
+        pop_size,
+        seq_global,
+        &ret);
+
+    cl_mem mask_mem =  clCreateBuffer(
+        context,
+        CL_MEM_COPY_HOST_PTR,
+        mask_size,
+        seq_global,
+        &ret);
+    
+    // Run kernel > set_neuron_count
+    kernel = clCreateKernel(program, "set_neuron_count", &ret);
+    ret |= clSetKernelArg(kernel, 0, sizeof(neuron_count), &neuron_count);
+    global_item_size[0] = 1;
+    local_item_size[0] = 1;
+    ret |= clEnqueueNDRangeKernel(command_queue, kernel, 1, NULL, global_item_size, local_item_size, 0, NULL, NULL);
+    clReleaseKernel(kernel);
+
+    // Run kernel > evolve
+    kernel = clCreateKernel(program, "evolve", &ret);
+    ret |= clSetKernelArg(kernel, 0, sizeof(cl_mem), &pop_mem);
+    ret |= clSetKernelArg(kernel, 1, sizeof(cl_mem), &mask_mem);
+
+    memcpy(global_item_size, (size_t[3]) { pop_count, sizeH, sizeW }, sizeof(size_t) * 3);
+    memcpy(local_item_size, (size_t[3]) { 1, 10, 10 }, sizeof(size_t) * 3);
+    ret |= clEnqueueNDRangeKernel(command_queue, kernel, 3, NULL, global_item_size, local_item_size, 0, NULL, NULL);
+    clReleaseKernel(kernel);
+    
+    // Read buffers
+    ret |= clEnqueueReadBuffer(command_queue, pop_mem, CL_TRUE, 0, pop_size, seq_global, 0, NULL, NULL);
+    ret |= clReleaseMemObject(pop_mem);
+    ret |= clEnqueueReadBuffer(command_queue, mask_mem, CL_TRUE, 0, mask_size, seq_mask, 0, NULL, NULL);
+    ret |= clReleaseMemObject(mask_mem);
+
+#pragma endregion KERNEL_EXEC
+
+#pragma region KERNEL_POST_EXEC
+
+    for (int i=0; i<pop_count; i++)
     {
-        for (int j = 0; j < MHEIGHT; j++)
-        {
-            A[i][j] = 1;
-            B[i][j] = 2;
-        }
+        print_genome(seq_global + i*sizeW*sizeH, seq_mask + i*sizeW*sizeH, sizeH, sizeW);
     }
-*/
-
-    cl_program program = load_program(context, "kernel.cl");
-    clBuildProgram(program, 1, &device_id, NULL, NULL, NULL);
     
-/*
-    cl_kernel kernel = clCreateKernel(program, "vector_add", NULL);
+    printf("Error: [%d]\n", ret);
 
-    cl_mem a_mem_obj = clCreateBuffer(context, CL_MEM_READ_ONLY,  MSIZE, NULL, NULL);
-    cl_mem b_mem_obj = clCreateBuffer(context, CL_MEM_READ_ONLY,  MSIZE, NULL, NULL);
-    cl_mem c_mem_obj = clCreateBuffer(context, CL_MEM_WRITE_ONLY, MSIZE, NULL, NULL);
-    clEnqueueWriteBuffer(command_queue, a_mem_obj, CL_TRUE, 0, MSIZE, A, 0, NULL, NULL);
-    clEnqueueWriteBuffer(command_queue, b_mem_obj, CL_TRUE, 0, MSIZE, B, 0, NULL, NULL);
-    
-    clSetKernelArg(kernel, 0, sizeof(cl_mem), &a_mem_obj);
-    clSetKernelArg(kernel, 1, sizeof(cl_mem), &b_mem_obj);
-    clSetKernelArg(kernel, 2, sizeof(cl_mem), &c_mem_obj);
-    clSetKernelArg(kernel, 3, sizeof(int), &MWIDTH);
+#pragma endregion KERNEL_POST_EXEC
 
-    size_t global_item_size[] = { MWIDTH, MHEIGHT };
-    size_t local_item_size[] = { 1, 1 };
-    clEnqueueNDRangeKernel(command_queue, kernel, 2, NULL, global_item_size, local_item_size, 0, NULL, NULL);
-    clEnqueueReadBuffer(command_queue, c_mem_obj, CL_TRUE, 0, MSIZE, C, 0, NULL, NULL);
-    
-    print_mat((int*)A, MWIDTH, MHEIGHT);
-    print_mat((int*)B, MWIDTH, MHEIGHT);
-    print_mat((int*)C, MWIDTH, MHEIGHT);
 
-    clReleaseMemObject(a_mem_obj);
-    clReleaseMemObject(c_mem_obj);
-*/
-    
-    int primes[150000] = {0};
-    cl_kernel kernel = clCreateKernel(program, "euler1", NULL);
-    cl_mem mem_obj = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeof(primes), NULL, NULL);
-    clSetKernelArg(kernel, 0, sizeof(cl_mem), &mem_obj);
-    size_t global_item_size = 150000;
-    size_t local_item_size = 1000;
-    clEnqueueNDRangeKernel(command_queue, kernel, 1, NULL, &global_item_size, &local_item_size, 0, NULL, NULL);
-    clEnqueueReadBuffer(command_queue, mem_obj, CL_TRUE, 0, sizeof(primes), primes, 0, NULL, NULL);
-    clReleaseMemObject(mem_obj);
-    
-    int p_cpt = 0;
-    for (int i=0; i < 150000; i++)
-    {
-        if (primes[i] != 0)
-        {
-            p_cpt++;
-            if (p_cpt == 10001)
-            {
-                printf("Prime: %d\n", primes[i]);
-                break;
-            }
-        }        
-    }
-    printf("Prime count: %d", p_cpt);
-
+#pragma region OPENCL_CLEAN
 
     // clean
     clFlush(command_queue);
@@ -110,11 +118,13 @@ int main(int argc, char *argv[])
     clReleaseKernel(kernel);
     clReleaseProgram(program);    
     clReleaseContext(context);
-    
+
+#pragma endregion OPENCL_CLEAN
+
     return 0;
 }
 
-cl_program load_program(cl_context context, char* filename)
+cl_program load_program(cl_context context, char* filename, cl_int* errcode_ret)
 {
     FILE *fp;
     char *source_str;
@@ -124,27 +134,20 @@ cl_program load_program(cl_context context, char* filename)
     char kernel_path[255];
     strcpy(kernel_path, BIN_PATH);
     strcat(kernel_path, filename);
+    source_str = (char*)malloc(MAX_SOURCE_SIZE);
+    if (!source_str)
+    {
+        *errcode_ret |= -4;
+        return 0;
+    }
     fp = fopen(kernel_path, "r");
     if (!fp) {
         fprintf(stderr, "Failed to load kernel.\n");
         exit(1);
     }
-    source_str = (char *)malloc(MAX_SOURCE_SIZE);
     source_size = fread(source_str, 1, MAX_SOURCE_SIZE, fp);
     fclose(fp);
 
-    return clCreateProgramWithSource(context, 1, (const char **)&source_str, (const size_t *)&source_size, NULL);
+    return clCreateProgramWithSource(context, 1, (const char **)&source_str, (const size_t *)&source_size, errcode_ret);
 }
 
-void print_mat(int *mat, int width, int height)
-{
-    for (int i = 0; i < width; i++)
-    {
-        for (int j = 0; j < height; j++)
-        {
-            printf("%d ", *(mat + (i * sizeof(int)) + j));
-        }
-        printf("\n");
-    }
-    printf("\n");
-}
