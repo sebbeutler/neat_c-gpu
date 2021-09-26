@@ -31,14 +31,14 @@ link_directories(${OpenCL_LIBRARY})
 target_link_libraries (${PROJECT_NAME} ${OpenCL_LIBRARY})
 
 # Copy kernels to the binary dir
-configure_file(${PROJECT_SOURCE_DIR}/kernels/kernel.cl ${BIN_OUTPUT_DIR}/kernel.cl COPYONLY)
+# configure_file(${PROJECT_SOURCE_DIR}/kernels/kernel.cl ${BIN_OUTPUT_DIR}/kernel.cl COPYONLY)
 # file(COPY ${PROJECT_SOURCE_DIR}/kernels/kernel.cl DESTINATION ${BIN_OUTPUT_DIR})
 
 add_custom_command(
         TARGET ${PROJECT_NAME}  POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy
-            ${PROJECT_SOURCE_DIR}/kernels/kernel.cl
-            ${BIN_OUTPUT_DIR}/kernel.cl)
+        COMMAND ${CMAKE_COMMAND} -E copy_directory 
+            ${PROJECT_SOURCE_DIR}/kernels/
+            ${BIN_OUTPUT_DIR}/kernels/)
 
 # Link the math library, needed on UNIX systems.
 if (UNIX)

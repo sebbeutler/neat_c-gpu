@@ -88,7 +88,7 @@ void print_genome(matrix_seq seq_global, matrix_mask seq_mask, int sizeH, int si
         printf("\t|");
         for (int j=0; j < sizeW; j++)
         {
-            printf("   %d  |", seq_mask[i*sizeH + j]);
+            printf("  %02d  |", seq_mask[i*sizeH + j]);
         }
         printf("\t|");
         for (int j=0; j < sizeW; j++)

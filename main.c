@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include <CL/cl.h>
 
@@ -13,7 +14,7 @@ char BIN_PATH[255];
 int main(int argc, char *argv[])
 {
     strcpy(BIN_PATH, argv[0]);
-    for (size_t i = strlen(BIN_PATH) - 1; i >= 0; i--)
+    for (int i = strlen(BIN_PATH) - 1; i >= 0; i--)
     {
         if (BIN_PATH[i] == '/' || BIN_PATH[i] == '\\')
         {
@@ -38,11 +39,9 @@ int main(int argc, char *argv[])
 
 #pragma region KERNEL_EXEC
 
-    cl_program program = load_program(context, "kernel.cl", &ret);
+    cl_program program = load_program(context, "kernels/kernels.cl", &ret);
     ret |= clBuildProgram(program, 1, &device_id, NULL, NULL, NULL);
     cl_kernel kernel;
-
-    int neuron_count = 10;
 
     // Init buffers
     int sizeH = 10;
@@ -71,9 +70,12 @@ int main(int argc, char *argv[])
         seq_global,
         &ret);
     
-    // Run kernel > set_neuron_count
-    kernel = clCreateKernel(program, "set_neuron_count", &ret);
-    ret |= clSetKernelArg(kernel, 0, sizeof(neuron_count), &neuron_count);
+    // Run kernel > new_session
+    kernel = clCreateKernel(program, "new_session", &ret);
+    unsigned long initstate = (unsigned long)time(NULL);
+    unsigned long initseq = (unsigned long)&printf;
+    ret |= clSetKernelArg(kernel, 0, sizeof(unsigned long), &initstate);
+    ret |= clSetKernelArg(kernel, 1, sizeof(unsigned long), &initseq);
     global_item_size[0] = 1;
     local_item_size[0] = 1;
     ret |= clEnqueueNDRangeKernel(command_queue, kernel, 1, NULL, global_item_size, local_item_size, 0, NULL, NULL);
@@ -81,13 +83,16 @@ int main(int argc, char *argv[])
 
     // Run kernel > evolve
     kernel = clCreateKernel(program, "evolve", &ret);
+
     ret |= clSetKernelArg(kernel, 0, sizeof(cl_mem), &pop_mem);
     ret |= clSetKernelArg(kernel, 1, sizeof(cl_mem), &mask_mem);
+    ret |= clSetKernelArg(kernel, 2, sizeof(int), &sizeW);
+    ret |= clSetKernelArg(kernel, 3, sizeof(int), &sizeH);
 
-    memcpy(global_item_size, (size_t[3]) { pop_count, sizeH, sizeW }, sizeof(size_t) * 3);
-    memcpy(local_item_size, (size_t[3]) { 1, 10, 10 }, sizeof(size_t) * 3);
-    ret |= clEnqueueNDRangeKernel(command_queue, kernel, 3, NULL, global_item_size, local_item_size, 0, NULL, NULL);
-    clReleaseKernel(kernel);
+    global_item_size[0] = 10;
+    local_item_size[0] = 1;
+    ret |= clEnqueueNDRangeKernel(command_queue, kernel, 1, NULL, global_item_size, local_item_size, 0, NULL, NULL);
+    
     
     // Read buffers
     ret |= clEnqueueReadBuffer(command_queue, pop_mem, CL_TRUE, 0, pop_size, seq_global, 0, NULL, NULL);
@@ -95,27 +100,30 @@ int main(int argc, char *argv[])
     ret |= clEnqueueReadBuffer(command_queue, mask_mem, CL_TRUE, 0, mask_size, seq_mask, 0, NULL, NULL);
     ret |= clReleaseMemObject(mask_mem);
 
+    clReleaseKernel(kernel);
+
+
 #pragma endregion KERNEL_EXEC
 
 #pragma region KERNEL_POST_EXEC
 
     for (int i=0; i<pop_count; i++)
     {
-        print_genome(seq_global + i*sizeW*sizeH, seq_mask + i*sizeW*sizeH, sizeH, sizeW);
+        //print_genome(seq_global + i*sizeW*sizeH, seq_mask + i*sizeW*sizeH, sizeH, sizeW);
     }
-    
-    printf("Error: [%d]\n", ret);
+    print_genome(seq_global, seq_mask, sizeH, sizeW);
 
 #pragma endregion KERNEL_POST_EXEC
 
 
 #pragma region OPENCL_CLEAN
 
+    printf("OpenCL error: [%d]\n", ret);
+
     // clean
     clFlush(command_queue);
     clFinish(command_queue);
-    clReleaseCommandQueue(command_queue);    
-    clReleaseKernel(kernel);
+    clReleaseCommandQueue(command_queue);
     clReleaseProgram(program);    
     clReleaseContext(context);
 
