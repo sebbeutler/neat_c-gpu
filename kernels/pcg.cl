@@ -1,6 +1,10 @@
 #ifndef PCG_CL
 #define PCG_CL
 
+#pragma OPENCL EXTENSION cl_khr_int64_base_atomics: enable
+#pragma OPENCL EXTENSION cl_khr_int64_extended_atomics: enable
+
+
 // Rotate Helper Functions
 
 inline uchar pcg_rotr_8(uchar value, unsigned int rot) {
@@ -109,6 +113,7 @@ struct pcg_state_32 {
 };
 
 struct pcg_state_64 {
+    int semaphore;
     ulong state;
 };
 
@@ -130,6 +135,7 @@ struct pcg_state_setseq_32 {
 };
 
 struct pcg_state_setseq_64 {
+    int semaphore;
     ulong state;
     ulong inc;
 };
@@ -376,10 +382,16 @@ inline void pcg_mcg_64_advance_r(struct pcg_state_64* rng, ulong delta)
         = pcg_advance_lcg_64(rng->state, delta, PCG_DEFAULT_MULTIPLIER_64, 0u);
 }
 
-inline void pcg_unique_64_step_r(struct pcg_state_64* rng)
+inline ulong pcg_unique_64_step_r(global struct pcg_state_64* rng)
 {
-    rng->state = rng->state * PCG_DEFAULT_MULTIPLIER_64
-                 + (ulong)(((intptr_t)rng) | 1u);
+    while (atom_xchg(&rng->semaphore, 1) != 0) 0;
+
+    ulong old_state = atom_xchg(&rng->state, rng->state * PCG_DEFAULT_MULTIPLIER_64
+                 + (ulong)(((intptr_t)rng) | 1u));
+    
+    atom_xchg(&rng->semaphore, 0);
+    
+    return old_state;
 }
 
 inline void pcg_unique_64_advance_r(struct pcg_state_64* rng, ulong delta)
@@ -517,7 +529,7 @@ inline void pcg_mcg_64_srandom_r(struct pcg_state_64* rng, ulong initstate)
     rng->state = initstate | 1u;
 }
 
-inline void pcg_unique_64_srandom_r(struct pcg_state_64* rng,
+inline void pcg_unique_64_srandom_r(global struct pcg_state_64* rng,
                                     ulong initstate)
 {
     rng->state = 0U;
@@ -530,6 +542,7 @@ inline void pcg_setseq_64_srandom_r(struct pcg_state_setseq_64* rng,
                                     ulong initstate, ulong initseq)
 {
     rng->state = 0U;
+    rng->semaphore = 0;
     rng->inc = (initseq << 1u) | 1u;
     pcg_setseq_64_step_r(rng);
     rng->state += initstate;
@@ -659,14 +672,14 @@ inline ushort pcg_unique_32_xsh_rs_16_boundedrand_r(struct pcg_state_32* rng,
     }
 }
 
-inline uint pcg_unique_64_xsh_rs_32_random_r(struct pcg_state_64* rng)
+inline uint pcg_unique_64_xsh_rs_32_random_r(global struct pcg_state_64* rng)
 {
     ulong oldstate = rng->state;
     pcg_unique_64_step_r(rng);
     return pcg_output_xsh_rs_64_32(oldstate);
 }
 
-inline uint pcg_unique_64_xsh_rs_32_boundedrand_r(struct pcg_state_64* rng,
+inline uint pcg_unique_64_xsh_rs_32_boundedrand_r(global struct pcg_state_64* rng,
                                                       uint bound)
 {
     uint threshold = -bound % bound;
@@ -830,14 +843,12 @@ inline ushort pcg_unique_32_xsh_rr_16_boundedrand_r(struct pcg_state_32* rng,
     }
 }
 
-inline uint pcg_unique_64_xsh_rr_32_random_r(struct pcg_state_64* rng)
+inline uint pcg_unique_64_xsh_rr_32_random_r(global struct pcg_state_64* rng)
 {
-    ulong oldstate = rng->state;
-    pcg_unique_64_step_r(rng);
-    return pcg_output_xsh_rr_64_32(oldstate);
+    return pcg_output_xsh_rr_64_32(pcg_unique_64_step_r(rng));
 }
 
-inline uint pcg_unique_64_xsh_rr_32_boundedrand_r(struct pcg_state_64* rng,
+inline uint pcg_unique_64_xsh_rr_32_boundedrand_r(global struct pcg_state_64* rng,
                                                       uint bound)
 {
     uint threshold = -bound % bound;
@@ -1082,7 +1093,7 @@ pcg_unique_32_rxs_m_xs_32_boundedrand_r(struct pcg_state_32* rng,
     }
 }
 
-inline ulong pcg_unique_64_rxs_m_xs_64_random_r(struct pcg_state_64* rng)
+inline ulong pcg_unique_64_rxs_m_xs_64_random_r(global struct pcg_state_64* rng)
 {
     ulong oldstate = rng->state;
     pcg_unique_64_step_r(rng);
@@ -1090,7 +1101,7 @@ inline ulong pcg_unique_64_rxs_m_xs_64_random_r(struct pcg_state_64* rng)
 }
 
 inline ulong
-pcg_unique_64_rxs_m_xs_64_boundedrand_r(struct pcg_state_64* rng,
+pcg_unique_64_rxs_m_xs_64_boundedrand_r(global struct pcg_state_64* rng,
                                         ulong bound)
 {
     ulong threshold = -bound % bound;
@@ -1200,14 +1211,14 @@ inline uint pcg_oneseq_64_xsl_rr_32_boundedrand_r(struct pcg_state_64* rng,
     }
 }
 
-inline uint pcg_unique_64_xsl_rr_32_random_r(struct pcg_state_64* rng)
+inline uint pcg_unique_64_xsl_rr_32_random_r(global struct pcg_state_64* rng)
 {
     ulong oldstate = rng->state;
     pcg_unique_64_step_r(rng);
     return pcg_output_xsl_rr_64_32(oldstate);
 }
 
-inline uint pcg_unique_64_xsl_rr_32_boundedrand_r(struct pcg_state_64* rng,
+inline uint pcg_unique_64_xsl_rr_32_boundedrand_r(global struct pcg_state_64* rng,
                                                       uint bound)
 {
     uint threshold = -bound % bound;
@@ -1258,31 +1269,6 @@ inline uint pcg_mcg_64_xsl_rr_32_boundedrand_r(struct pcg_state_64* rng,
 
 /* Generation functions for XSL RR RR (only defined for "large" types) */
 
-inline ulong pcg_oneseq_64_xsl_rr_rr_64_random_r(struct pcg_state_64* rng)
-{
-    ulong oldstate = rng->state;
-    pcg_oneseq_64_step_r(rng);
-    return pcg_output_xsl_rr_rr_64_64(oldstate);
-}
-
-inline ulong
-pcg_oneseq_64_xsl_rr_rr_64_boundedrand_r(struct pcg_state_64* rng,
-                                         ulong bound)
-{
-    ulong threshold = -bound % bound;
-    for (;;) {
-        ulong r = pcg_oneseq_64_xsl_rr_rr_64_random_r(rng);
-        if (r >= threshold)
-            return r % bound;
-    }
-}
-
-inline ulong pcg_unique_64_xsl_rr_rr_64_random_r(struct pcg_state_64* rng)
-{
-    ulong oldstate = rng->state;
-    pcg_unique_64_step_r(rng);
-    return pcg_output_xsl_rr_rr_64_64(oldstate);
-}
 
 inline ulong
 pcg_unique_64_xsl_rr_rr_64_boundedrand_r(struct pcg_state_64* rng,
@@ -1294,14 +1280,6 @@ pcg_unique_64_xsl_rr_rr_64_boundedrand_r(struct pcg_state_64* rng,
         if (r >= threshold)
             return r % bound;
     }
-}
-
-inline ulong
-pcg_setseq_64_xsl_rr_rr_64_random_r(struct pcg_state_setseq_64* rng)
-{
-    ulong oldstate = rng->state;
-    pcg_setseq_64_step_r(rng);
-    return pcg_output_xsl_rr_rr_64_64(oldstate);
 }
 
 inline ulong
@@ -1318,7 +1296,7 @@ pcg_setseq_64_xsl_rr_rr_64_boundedrand_r(struct pcg_state_setseq_64* rng,
 
 
 #define MAXSHIFT    (8 * sizeof(long) - 2)
-double pcg32_doublerand(struct pcg_state_64* rng)
+double pcg32_doublerand(global struct pcg_state_64* rng)
 {
 	double value = pcg_unique_64_xsh_rr_32_random_r(rng);
 	int exp = -32;

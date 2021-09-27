@@ -17,7 +17,6 @@ typedef char byte_t;
 #define MAX_NEURONS 10
 
 global pcg32u_random_t rand_seed;
-global int s_rand_seed = 0;
 global int neuron_count;
 
 void s_request(global int* s)
@@ -50,11 +49,14 @@ void initBasic(int id, global matrix_seq M_seq, global matrix_mask M_mask, int i
     }
     for (int i=0; i < inputSize; i++)
     {
+        for (int j= 0; j<MAX_NEURONS; j++)
+        {
+            M_mask[i*neuron_count + j] = -1;
+        }
         for (int j=inputSize; j < inputSize+outputSize; j++)
         {
-            M_mask[i + j*neuron_count] = 1;
-            M_mask[j + i*neuron_count] = -1;
-            //M_seq[i + j*neuron_count] = pcg32_doublerand(&rand_seed);
+            M_mask[j*neuron_count + i] = 1;
+            //M_seq[j*neuron_count + i] = pcg32_doublerand(&rand_seed);
         }
     }
     population[id] = s;
@@ -62,44 +64,32 @@ void initBasic(int id, global matrix_seq M_seq, global matrix_mask M_mask, int i
 
 void mutate_add_link(int id)
 {
-    int n1 = 0;
-    int n2 = 0;
-    while (n1 < population[id].inputSize
-        || n2 < population[id].inputSize
-        || population[id].M_mask[n1*MAX_NEURONS + n2] == -1
-        || n1 == n2
-        || !population[id].neuronList[n1]
-        || !population[id].neuronList[n2])
+    int n_in = 0;
+    int n_out = 0;
+    while (population[id].M_mask[n_out*MAX_NEURONS + n_in] == -1
+        || n_in == n_out
+        || !population[id].neuronList[n_in]
+        || !population[id].neuronList[n_out])
     {
-        s_request(&s_rand_seed);
-        n1 = pcg32_doublerand(&rand_seed) * neuron_count;
-        n2 = pcg32_doublerand(&rand_seed) * neuron_count;
-        s_release(&s_rand_seed);
+        n_in = pcg32_doublerand(&rand_seed) * neuron_count;
+        n_out = pcg32_doublerand(&rand_seed) * neuron_count;
     }
 
-    population[id].M_mask[n1*MAX_NEURONS + n2] = 1;
-    population[id].M_mask[n2*MAX_NEURONS + n1] = -1;
-    
-    s_request(&s_rand_seed);
-    population[id].M_seq[n1*MAX_NEURONS + n2] = pcg32_doublerand(&rand_seed);
-    s_release(&s_rand_seed);
+    population[id].M_mask[n_out*MAX_NEURONS + n_in] = 1;
+    population[id].M_mask[n_in*MAX_NEURONS + n_out] = -1;
+    population[id].M_seq[n_out*MAX_NEURONS + n_in] = pcg32_doublerand(&rand_seed);
 }
 
-// TODO: fast number generator with atomic_inc and dist pgc
 void mutate_link_shift(int id)
 {
     int n1, n2;
     do 
     {
-        s_request(&s_rand_seed);
-        n1 = pcg32i_boundedrand_r(&rand_seed, MAX_NEURONS);
-        n2 = pcg32i_boundedrand_r(&rand_seed, MAX_NEURONS);
-        s_release(&s_rand_seed);
+        n1 = pcg32u_boundedrand_r(&rand_seed, MAX_NEURONS);
+        n2 = pcg32u_boundedrand_r(&rand_seed, MAX_NEURONS);
     } while (population[id].M_mask[n2 * MAX_NEURONS + n1] != 1);
 
-    s_request(&s_rand_seed);
     population[id].M_seq[n2 * MAX_NEURONS + n1] = pcg32_doublerand(&rand_seed);
-    s_release(&s_rand_seed);
 }
 
 #endif // !EVOLUTION_H

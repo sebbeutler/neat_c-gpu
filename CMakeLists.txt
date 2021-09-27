@@ -16,8 +16,6 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE  ${BIN_OUTPUT_DIR})
 set(SOURCES
     ${PROJECT_SOURCE_DIR}/main.c
     ${PROJECT_SOURCE_DIR}/format_io.c
-    ${PROJECT_SOURCE_DIR}/main.c
-
 )
 
 add_executable(${PROJECT_NAME} ${SOURCES})

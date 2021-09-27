@@ -14,7 +14,7 @@ char BIN_PATH[255];
 int main(int argc, char *argv[])
 {
     strcpy(BIN_PATH, argv[0]);
-    for (int i = strlen(BIN_PATH) - 1; i >= 0; i--)
+    for (size_t i = strlen(BIN_PATH) - 1; i >= 0; i--)
     {
         if (BIN_PATH[i] == '/' || BIN_PATH[i] == '\\')
         {
@@ -34,15 +34,21 @@ int main(int argc, char *argv[])
     ret |= clGetDeviceIDs(platform_id, CL_DEVICE_TYPE_DEFAULT, 1, &device_id, NULL);
     cl_context context = clCreateContext(NULL, 1, &device_id, NULL, NULL, &ret);
     cl_command_queue command_queue = clCreateCommandQueue(context, device_id, 0, &ret);
-
+    
 #pragma endregion OPENCL_INIT
 
 #pragma region KERNEL_EXEC
 
     cl_program program = load_program(context, "kernels/kernels.cl", &ret);
-    ret |= clBuildProgram(program, 1, &device_id, NULL, NULL, NULL);
+    ret = clBuildProgram(program, 1, &device_id, NULL, NULL, NULL);
+    
+    size_t len = 0;
+    clGetProgramBuildInfo(program, device_id, CL_PROGRAM_BUILD_LOG, 0, NULL, &len);
+    char *buffer = calloc(len, sizeof(char));
+    clGetProgramBuildInfo(program, device_id, CL_PROGRAM_BUILD_LOG, len, buffer, NULL);
+    printf("%s\n", buffer);
+    
     cl_kernel kernel;
-
     // Init buffers
     int sizeH = 10;
     int sizeW = 10;
@@ -73,6 +79,7 @@ int main(int argc, char *argv[])
     // Run kernel > new_session
     kernel = clCreateKernel(program, "new_session", &ret);
     unsigned long initstate = (unsigned long)time(NULL);
+    #pragma warning (disable : 4311)
     unsigned long initseq = (unsigned long)&printf;
     ret |= clSetKernelArg(kernel, 0, sizeof(unsigned long), &initstate);
     ret |= clSetKernelArg(kernel, 1, sizeof(unsigned long), &initseq);
@@ -118,7 +125,10 @@ int main(int argc, char *argv[])
 
 #pragma region OPENCL_CLEAN
 
-    printf("OpenCL error: [%d]\n", ret);
+    if (ret == 0)
+        printf("opencl success!\n\n");
+    else
+        printf("opencl error: [%d]\n\n", ret);
 
     // clean
     clFlush(command_queue);
