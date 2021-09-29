@@ -14,7 +14,8 @@ char BIN_PATH[255];
 int main(int argc, char *argv[])
 {
     strcpy(BIN_PATH, argv[0]);
-    for (size_t i = strlen(BIN_PATH) - 1; i >= 0; i--)
+    int _c = strlen(BIN_PATH);
+    for (size_t i = _c - 1; i >= 0; i--)
     {
         if (BIN_PATH[i] == '/' || BIN_PATH[i] == '\\')
         {

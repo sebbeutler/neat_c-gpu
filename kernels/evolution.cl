@@ -40,6 +40,7 @@ typedef struct Substrate
 
 global Substrate population[POP_COUNT];
 
+// TODO: Add mutation neuron history matrix
 void initBasic(int id, global matrix_seq M_seq, global matrix_mask M_mask, int inputSize, int outputSize, global matrixB ncount)
 {
     Substrate s = { ncount, M_seq, M_mask, inputSize, outputSize };
@@ -94,7 +95,17 @@ void mutate_link_shift(int id)
 
 void mutate_neuron_add(int id)
 {
-    ;
+    int x, y;
+    do
+    {
+        x = pcg32u_boundedrand_r(&rand_seed, MAX_NEURONS);
+        y = pcg32u_boundedrand_r(&rand_seed, MAX_NEURONS);
+    } while (population[id].M_mask[y * MAX_NEURONS + x] != 1);
+
+    population[id].M_mask[y * MAX_NEURONS + x] = -1;
+
+    
+
 }
 
 #endif // !EVOLUTION_H
