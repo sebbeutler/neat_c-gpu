@@ -31,7 +31,7 @@ void s_release(global int* s)
 
 typedef struct Substrate
 {
-    char neuronList[MAX_NEURONS];
+    byte_t* neurons;
     matrix_seq M_seq;
     matrix_mask M_mask;
     int inputSize;
@@ -40,20 +40,20 @@ typedef struct Substrate
 
 global Substrate population[POP_COUNT];
 
-void initBasic(int id, global matrix_seq M_seq, global matrix_mask M_mask, int inputSize, int outputSize)
+void initBasic(int id, global matrix_seq M_seq, global matrix_mask M_mask, int inputSize, int outputSize, global matrixB ncount)
 {
-    Substrate s = { {0}, M_seq, M_mask, inputSize, outputSize };
-    for (int i=0; i<inputSize+outputSize; i++)
+    Substrate s = { ncount, M_seq, M_mask, inputSize, outputSize };
+    for (int i = 0; i < inputSize + outputSize; i++)
     {
-        s.neuronList[i] = 1;
+        s.neurons[i] = 1;
     }
     for (int i=0; i < inputSize; i++)
     {
-        for (int j= 0; j<MAX_NEURONS; j++)
+        for (int j = 0; j<MAX_NEURONS; j++)
         {
             M_mask[i*neuron_count + j] = -1;
         }
-        for (int j=inputSize; j < inputSize+outputSize; j++)
+        for (int j = inputSize; j < inputSize + outputSize; j++)
         {
             M_mask[j*neuron_count + i] = 1;
             //M_seq[j*neuron_count + i] = pcg32_doublerand(&rand_seed);
@@ -68,8 +68,8 @@ void mutate_add_link(int id)
     int n_out = 0;
     while (population[id].M_mask[n_out*MAX_NEURONS + n_in] == -1
         || n_in == n_out
-        || !population[id].neuronList[n_in]
-        || !population[id].neuronList[n_out])
+        || !population[id].neurons[n_in]
+        || !population[id].neurons[n_out])
     {
         n_in = pcg32_doublerand(&rand_seed) * neuron_count;
         n_out = pcg32_doublerand(&rand_seed) * neuron_count;
@@ -90,6 +90,11 @@ void mutate_link_shift(int id)
     } while (population[id].M_mask[n2 * MAX_NEURONS + n1] != 1);
 
     population[id].M_seq[n2 * MAX_NEURONS + n1] = pcg32_doublerand(&rand_seed);
+}
+
+void mutate_neuron_add(int id)
+{
+    ;
 }
 
 #endif // !EVOLUTION_H

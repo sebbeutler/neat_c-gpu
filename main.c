@@ -34,6 +34,20 @@ int main(int argc, char *argv[])
     ret |= clGetDeviceIDs(platform_id, CL_DEVICE_TYPE_DEFAULT, 1, &device_id, NULL);
     cl_context context = clCreateContext(NULL, 1, &device_id, NULL, NULL, &ret);
     cl_command_queue command_queue = clCreateCommandQueue(context, device_id, 0, &ret);
+
+    size_t info;
+    clGetDeviceInfo(
+    device_id,
+    CL_DEVICE_MAX_WORK_GROUP_SIZE,
+    sizeof(info),
+    &info,
+    NULL);
+
+    // for (int i=0; i < 3; i++)
+    //     printf("Info: %llu\n", info[i]);
+
+    // printf("Info: %llu\n", info);
+
     
 #pragma endregion OPENCL_INIT
 
@@ -50,17 +64,20 @@ int main(int argc, char *argv[])
     
     cl_kernel kernel;
     // Init buffers
-    int sizeH = 10;
-    int sizeW = 10;
+    int size = 10;
     int pop_count = 10;
-    size_t pop_size = pop_count * sizeW * sizeH * sizeof(double);
-    size_t mask_size = pop_count * sizeW * sizeH * sizeof(byte_t);
+    size_t pop_size = pop_count * size * size * sizeof(double);
+    size_t mask_size = pop_count * size * size * sizeof(byte_t);
+    size_t ncount_size = pop_count * size * sizeof(byte_t);
     
     matrix_seq seq_global = malloc(pop_size); if (!seq_global) return -4;
     memset(seq_global, 0, pop_size);
     
     matrix_mask seq_mask = malloc(mask_size); if (!seq_mask) return -4;
     memset(seq_mask, 0, mask_size);
+
+    matrixB ncount = malloc(ncount_size); if (!ncount) return -4;
+    memset(ncount, 0, ncount_size);
 
     cl_mem pop_mem =  clCreateBuffer(
         context,
@@ -74,6 +91,13 @@ int main(int argc, char *argv[])
         CL_MEM_COPY_HOST_PTR,
         mask_size,
         seq_global,
+        &ret);
+
+    cl_mem ncount_mem =  clCreateBuffer(
+        context,
+        CL_MEM_COPY_HOST_PTR,
+        ncount_size,
+        ncount,
         &ret);
     
     // Run kernel > new_session
@@ -93,8 +117,8 @@ int main(int argc, char *argv[])
 
     ret |= clSetKernelArg(kernel, 0, sizeof(cl_mem), &pop_mem);
     ret |= clSetKernelArg(kernel, 1, sizeof(cl_mem), &mask_mem);
-    ret |= clSetKernelArg(kernel, 2, sizeof(int), &sizeW);
-    ret |= clSetKernelArg(kernel, 3, sizeof(int), &sizeH);
+    ret |= clSetKernelArg(kernel, 2, sizeof(int), &size);
+    ret |= clSetKernelArg(kernel, 3, sizeof(cl_mem), &ncount_mem);
 
     global_item_size[0] = 10;
     local_item_size[0] = 1;
@@ -106,6 +130,9 @@ int main(int argc, char *argv[])
     ret |= clReleaseMemObject(pop_mem);
     ret |= clEnqueueReadBuffer(command_queue, mask_mem, CL_TRUE, 0, mask_size, seq_mask, 0, NULL, NULL);
     ret |= clReleaseMemObject(mask_mem);
+    ret |= clEnqueueReadBuffer(command_queue, ncount_mem, CL_TRUE, 0, ncount_size, ncount, 0, NULL, NULL);
+    ret |= clReleaseMemObject(ncount_mem);
+
 
     clReleaseKernel(kernel);
 
@@ -118,7 +145,8 @@ int main(int argc, char *argv[])
     {
         //print_genome(seq_global + i*sizeW*sizeH, seq_mask + i*sizeW*sizeH, sizeH, sizeW);
     }
-    print_genome(seq_global, seq_mask, sizeH, sizeW);
+    print_genome(seq_global, seq_mask, size, ncount);
+    print_genome(seq_global + 1*size*size, seq_mask + 1*size*size, size, ncount);
 
 #pragma endregion KERNEL_POST_EXEC
 
@@ -138,6 +166,10 @@ int main(int argc, char *argv[])
     clReleaseContext(context);
 
 #pragma endregion OPENCL_CLEAN
+
+#if _WIN32
+    system("Pause");
+#endif
 
     return 0;
 }
