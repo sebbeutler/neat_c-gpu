@@ -1,6 +1,7 @@
 #include "kernels/evolution.cl"
 #include "kernels/pcg.cl"
 
+// TODO: if matrix become to big, try a virtual matrix association with pairToId
 
 kernel void new_session(uint initstate, uint initseq)
 {

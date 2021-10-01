@@ -40,7 +40,7 @@ typedef struct Substrate
 
 global Substrate population[POP_COUNT];
 
-// TODO: Add mutation neuron history matrix
+// TODO: Add mutation neuron history matrixB
 void initBasic(int id, global matrix_seq M_seq, global matrix_mask M_mask, int inputSize, int outputSize, global matrixB ncount)
 {
     Substrate s = { ncount, M_seq, M_mask, inputSize, outputSize };
